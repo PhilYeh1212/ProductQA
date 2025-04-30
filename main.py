@@ -1,35 +1,28 @@
-# 步驟 1: 匯入必要的函式庫
-from langchain.embeddings import SentenceTransformerEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.llms import OpenAI  # 或其他 LLM
+import os
+from dotenv import load_dotenv
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
 from langchain.chains import RetrievalQA
-import json
+from langchain_openai import ChatOpenAI
 
-# 步驟 2: 載入產品資料
-with open("products.json", "r", encoding="utf-8") as f:
-    products_data = json.load(f)
+load_dotenv()
 
-product_texts = [p["description"] for p in products_data]
-product_names = [p["name"] for p in products_data]
+# 設定Embedding
+embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-# 步驟 3: 建立向量儲存庫
-embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
-db = FAISS.from_texts(product_texts, embeddings)
-retriever = db.as_retriever()
+# 讀取向量資料庫
+vectordb = Chroma(persist_directory="./chroma_db", embedding_function=embedding)
+retriever = vectordb.as_retriever()
 
-# 步驟 4: 載入 LLM (需要 OpenAI API 金鑰)
-llm = OpenAI(api_key="YOUR_OPENAI_API_KEY")
+# 設定LLM
+llm = ChatOpenAI(
+    model_name="gpt-4",
+    openai_api_key=os.getenv("OPENAI_API_KEY")  # 或直接填"你的API KEY"
+)
 
-# 步驟 5: 建立檢索問答鏈
-qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever)
+# 問答系統
+qa = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
-# 步驟 6: 測試問答機器人
-query = "哪款筆記型電腦比較輕？"
+query = input("請問你要查什麼？")
 result = qa.run(query)
-print(f"問題：{query}")
-print(f"答案：{result}")
-
-query = "桌上型電腦的處理器是什麼？"
-result = qa.run(query)
-print(f"問題：{query}")
-print(f"答案：{result}")
+print(result)
